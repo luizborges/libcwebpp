@@ -367,8 +367,8 @@ class Out
 	////////////////////////////////////////////////////////////////////////////////
 	// inner variables
 	////////////////////////////////////////////////////////////////////////////////
-	map<const char*, Content*, cmp_str> _map;
-	deque<Content*> _queue;
+	std::map<const char*, Content*, cmp_str> _map;
+	std::deque<Content*> _queue;
 	//queue<Print*> _print;
 	
 	////////////////////////////////////////////////////////////////////////////////
@@ -464,15 +464,15 @@ void call_child(const char *name)
 
 void
 cweb::out::str(
-	const string& name,
-	const string& data)
+	const std::string& name,
+	const std::string& data)
 {
 	return _out.set(*(new Content(name.c_str(), data.c_str())));
 }
 
 void
 cweb::out::file(
-	const string& name,
+	const std::string& name,
 	FILE *file)
 {
 	return _out.set(*(new ContentFile(name.c_str(), file)));
@@ -480,8 +480,8 @@ cweb::out::file(
 
 void
 cweb::out::file(
-	const string& name,
-	const string& fname)
+	const std::string& name,
+	const std::string& fname)
 {
 	return _out.set(*(new ContentFileName(name.c_str(), fname.c_str())));
 }

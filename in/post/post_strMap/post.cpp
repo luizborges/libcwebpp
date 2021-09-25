@@ -22,7 +22,7 @@ class Post
 	char *_stdin = NULL; // keep all the post encode content - key + value - é o post tal como recebido no stdin
 	char *str = NULL; // only the value of the post's decode content
 	long size = 0; // ambas as strings tem o mesmo tamanho -> str e value, always
-	map<const char*, const char*, cmp_str> _map;
+	std::map<const char*, const char*, cmp_str> _map;
 	
  public:
  	Post()

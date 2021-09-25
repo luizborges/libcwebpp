@@ -37,24 +37,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Public Functions
 ////////////////////////////////////////////////////////////////////////////////
-std::unordered_map<std::string, std::string>
-w::fill_map(const std::string& str, const char lim)
-{ try {
-	std::unordered_map<std::string, std::string> map;
-	for(int i=0; static_cast<size_t>(i) < str.size(); ++i)
-	{
-		///////////////////////////////////////////////////////////////////
-		// busca, decodifica chave do ENCODE - um par de key e conteúdo
-		///////////////////////////////////////////////////////////////////
-		std::string key = decode(str, i, '=');
-		++i; // ir para o próximo character que iniciára a nova codificação
-		std::string val = decode(str, i, lim);
-		map[key] = val;
- 	}
- 	
-	return map;
- } catch(std::exception const& e) { throw err(e.what()); }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Interface
@@ -126,8 +108,8 @@ w::encode(const std::string& str)
 	
 	for(const int c : str)
 	{
-		if(c == ' ') { encode_str += "+"; }
-		else if (c<33 || c>126 ||
+		//if(c == ' ') { encode_str += "+"; } // a função decodeURIComponent() do javascript não trata este caso por isto foi retirado.
+		if (c<33 || c>126 ||
 			strchr("!\"%'();:@&=+$,/?#[]{}^\\|<>~`",c)) {
             encode_str += u::sprintf("%%%02X", c & 0xff);
         }

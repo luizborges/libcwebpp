@@ -20,7 +20,7 @@ void w::cookie_simple_t::init(const int max_size)
 		}
 	}
 	
-	cookie = w::fill_map(http_cookie, ';');
+	cookie = w::fill_map<std::unordered_map<std::string, std::string>>(http_cookie, ';');
 	
  } catch(std::exception const& e) { throw err(e.what()); }
 }	 	

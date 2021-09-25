@@ -23,7 +23,7 @@ class Get
 	int  hglen = 0; // = strlen(getenv("QUERY_STRING")) | hglen = len of http get
 	char *str = NULL;
 	int  size = 0;
-	map<const char*, const char*, cmp_str> _map;
+	std::map<const char*, const char*, cmp_str> _map;
  
  public:
 

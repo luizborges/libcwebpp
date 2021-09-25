@@ -98,17 +98,17 @@ cweb::in::method(const char *um, const char *type)
 	{
 		if(um == nullptr) return; // sucesso pois tanto o valor passado pelo usuário como o da biblioteca são iguais
 		//throw cweb::error::inMethod::instance();
-		throw *new string("cweb::error::inMethod["
+		throw *new std::string("cweb::error::inMethod["
 		"getenv(\"REQUEST_METHOD\") = nullptr & user_method != nullptr]");
 	}
 	
 	if(um == nullptr) {
-		throw *new string("cweb::error::inMethod["
+		throw *new std::string("cweb::error::inMethod["
 		"getenv(\"REQUEST_METHOD\") != nullptr & user_method = nullptr]");
 	}
 	
 	if(strcmp(rm, um) != 0) {
-		throw *new string("cweb::error::inMethod["
+		throw *new std::string("cweb::error::inMethod["
 		"getenv(\"REQUEST_METHOD\") != user_method]");
 	}
 	
@@ -116,7 +116,7 @@ cweb::in::method(const char *um, const char *type)
 	
 	char *ct = getenv("CONTENT_TYPE");
 	if(strcmp(ct, type) != 0) {
-		throw *new string("cweb::error::inMethod["
+		throw *new std::string("cweb::error::inMethod["
 		"getenv(\"CONTENT_TYPE\") != type]");
 	}
 	

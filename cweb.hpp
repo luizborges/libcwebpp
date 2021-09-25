@@ -41,7 +41,7 @@
 
 #include <pqxx/pqxx> // postgres
 
-using namespace std;
+//using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 // Includes - system dependent libraries
 ////////////////////////////////////////////////////////////////////////////////
@@ -386,9 +386,9 @@ namespace out
 	 * para liberar essas memórias utilize a função "void clean()"
  */
 
-	extern void  str(const string& name, const string& output);
-	extern void file(const string& name, FILE *output);
-	extern void file(const string& name, const string& file_name);
+	extern void  str(const std::string& name, const std::string& output);
+	extern void file(const std::string& name, FILE *output);
+	extern void file(const std::string& name, const std::string& file_name);
 	
 	/**
 	 * Envia o arquivo gerado na saída para a saída padrão do fast-cgi.
@@ -490,7 +490,7 @@ cweb::session::set(const char *key, const int value)
 	*_i = value;
 	return cweb::session::setv(key, _i,
 		sizeof(int), 1);
- } catch(u::error& e) { throw err();
+ } catch(u::error& e) { throw err("");
  } catch(std::bad_alloc& e) { throw err("std::bad_alloc - \"%s\"", e.what()); }
 }
 
@@ -520,6 +520,12 @@ namespace w
 	////////////////////////////////////////////////////////////////////////////////
 	// Includes - Session
 	////////////////////////////////////////////////////////////////////////////////
+    /**
+     * // deleta todas as linhas da tabela head e body em que o tempo da sessão (head.date) é maior que 5 minutos
+     * delete from head where (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - date)/60))::NUMERIC > 5.0;
+	 * // ver qual o número de linhas das tableas body and head
+	 * select (select count(*) from head) as head_count, count(*) as body_count from body;
+     */
 	/**
 	 * Observações gerais:
 	 * 1. a funções: operator[], del() e save() devem ser utilizadas somente com uma sessão
@@ -579,7 +585,7 @@ namespace w
 	 	 * @arg max_size_session_id = tamanho máximo da string que representa o 'sid' pode ter
 	 	 */
 	 	void config(const std::string& connection_arg, const size_t max_time_session,
-	 		const size_t max_size_session_key = 4096, const size_t max_size_session_val = 4194304,
+	 		const size_t max_size_session_key = 4096, const size_t max_size_session_val = 4194304, // 4194304 = 4096*1024
 	 		const size_t max_size_session_id = 2048);
 	 	
 	 	/**
@@ -703,7 +709,7 @@ namespace w
 	 * @return uma string que contém todos os valores do obj codificados, separados pelo character '&'
 	 */
 	template<typename T>
-	std::string encode(const T& obj, const int num_elem_encode = -1);
+	std::string encode_obj(const T& obj, const int num_elem_encode = -1);
 	
 	/**
 	 * Decodifica uma string e passa seus valores para um objeto (estrutura unidimensional ordenada)
@@ -722,8 +728,13 @@ namespace w
 	 * @arg: str: string que será decoficiada.
 	 * @arg: lim: charachter que marca o limite entre as chaves e os valores.
 	 * Exemplo: nas funções do HTTP:: GET: '&' - POST: '&'
+     * @arg end_key: character que marca o fim da chave e o início do valor do par: chave-valor.
+     * Exemplo: nas funções do HTTP:: GET: '=' - POST: '='
+     * @obs: as funções que serão usadas nesse template tem que ser possível fazer a seguinte atribuição:
+     * T map; map[key] = val; -> onde key e val são std::string.
 	 */
-	std::unordered_map<std::string, std::string> fill_map(const std::string& str, const char lim);
+	template<typename T>
+	T fill_map(const std::string& str, const char lim = '&', const char end_key = '=');
 	////////////////////////////////////////////////////////////////////////////////
 	// Cookie
 	////////////////////////////////////////////////////////////////////////////////
@@ -835,6 +846,7 @@ namespace w
 	 	 */
 	 	virtual inline std::string type(const std::string& key) { 
 	 		throw err("HTTP INPUT NOT POST multipart/form-data");
+            key.empty();
 	 	}
 	 	
 	 	virtual inline size_t size() const {
@@ -845,12 +857,19 @@ namespace w
 	 		return var.empty();
 	 	}
 	 	
+	 	virtual inline std::unordered_map<std::string, std::string>::iterator find(const std::string& key) {
+			return var.find(key);
+		}
+		virtual inline std::unordered_map<std::string, std::string>::const_iterator find (const std::string& key) const {
+			return var.find(key);
+		}
+	 	
 	 	/**
 	 	 * @return o valor da entrada cujo nome é a chave.
 	 	 * se o valor não existe, throw exception
 	 	 */
     	virtual std::string& operator[](const std::string& key);
-    	//const std::string& operator[](const std::string& key) const;
+    	virtual std::string& operator[](const std::string& key) const;
 	 	
 	 	////////////////////////////////////////////////////////////////////////////////
 		// public functions - for range interators - for work with for range loop
@@ -907,7 +926,7 @@ namespace w
 // Implementation of templates and inline functions
 ////////////////////////////////////////////////////////////////////////////////
 template<typename T>
-std::string w::encode(const T& obj, const int num_elem_encode)
+std::string w::encode_obj(const T& obj, const int num_elem_encode)
 { try {
 	// verifica o número de elementos da lista que será decodificado
 	if(num_elem_encode < -1) { throw err("number of elements of object to encode: %d\n", num_elem_encode); }
@@ -939,7 +958,23 @@ T w::fill_obj(const std::string& str, const char lim)
  } catch(std::exception const& e) { throw err(e.what()); }
 }
 
-
+template<typename T>
+T w::fill_map(const std::string& str, const char lim, const char end_key)
+{ try {
+	T map;
+	for(int i=0; static_cast<size_t>(i) < str.size(); ++i)
+	{
+		///////////////////////////////////////////////////////////////////
+		// busca, decodifica chave do ENCODE - um par de key e conteúdo
+		///////////////////////////////////////////////////////////////////
+		std::string key = decode(str, i, end_key);
+		++i; // ir para o próximo character que iniciára a nova codificação
+		std::string val = decode(str, i, lim);
+		map[key] = val;
+ 	}
+	return map;
+ } catch(std::exception const& e) { throw err(e.what()); }
+}
 
 
 

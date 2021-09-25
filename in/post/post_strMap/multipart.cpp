@@ -215,7 +215,7 @@ class Mult
 			return std::strcmp(a, b) < 0;
    		}
 	};
-	map<const char*, cweb::file*, cmp_str> _map;
+	std::map<const char*, cweb::file*, cmp_str> _map;
 	char *boundary = NULL;
 	int boundary_size = 0;
 	char *_stdin = NULL;

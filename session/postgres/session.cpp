@@ -17,11 +17,44 @@ SELECT * from head where (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - date)/60))::NU
 delete from head where (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - date)/60))::NUMERIC > 5.0;
  */
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // Public Function
 ////////////////////////////////////////////////////////////////////////////////
+/**
+ * esta função preenche a sessão com todos os valores dela no banco de dados.
+std::unordered_map<std::string, std::string> global_main_get_all_session_values_in_db(const std::string& sid)
+{ try {
+	////////////////////////////////////////////////////////////////////////////////
+	// verifica o valor de sid & abre conexão e uma transação com o banco de dados da sessão
+	////////////////////////////////////////////////////////////////////////////////
+	if(u::isdigit(sid, false) == false) return {}; // verifica se contém somente números a string - verifica  também se é vazio
+	
+	pqxx::connection C(DATABASE_CONNECTION_SESSION);
+	try { // necessário for run C.disconnect() in catch()
+    	if(!C.is_open()) throw err("Can't open session database.\nconnection_arg: \"%s\"", DATABASE_CONNECTION_SESSION);
+	    pqxx::nontransaction N(C); // inicia uma transação com o BD - Create a notransactional object.
+    	
+    	////////////////////////////////////////////////////////////////////////////////
+		// preenche todo o map da sessão
+		////////////////////////////////////////////////////////////////////////////////
+    	std::string sql = u::sprintf("select name, value from body where head_id = %s;", N.quote(sid).c_str());
+    	pqxx::result R{ N.exec(sql) }; // executa o sql 
+    	
+    	std::unordered_map<std::string, std::string> session;
+    	for(const auto& r : R) {
+    		std::string name  = r["name"].is_null() ? "" : r["name"].as<string>();
+    		std::string value = r["value"].is_null() ? "" : r["value"].as<string>();
+    		session[name] = value;
+    	}
+    	
+    	C.disconnect ();
+    	return session;
+ 	} catch (pqxx::sql_error const &e) {
+ 		C.disconnect(); throw err("SQL error: %s\nQuery was: \"%s\"", e.what(), e.query().c_str());    
+	} catch(std::exception const& e) { C.disconnect(); throw err(e.what()); }
+ } catch(std::exception const& e) { throw err(e.what()); }
+} */
+
 void
 w::session_postgres_t::config(
 	const std::string& connection_arg, const size_t max_time_session,
@@ -41,7 +74,7 @@ w::session_postgres_t::config(
  } catch(std::exception const& e) { throw err(e.what()); }
 }
 
-std::string
+std::string 
 w::session_postgres_t::create()
 { try {
 	sid = create_sid(); // gera um valor aleatório para o sid
@@ -54,7 +87,7 @@ w::session_postgres_t::create()
    	try{ // necessário for run C.disconnect() in catch()
    	
     	if(!C.is_open()) throw err("Can't open session database.\nconnection_arg: \"%s\"", connection_arg.c_str());
-    	W = std::make_unique<pqxx::work>(C); // inicia uma transação com o banco de dados /* Create a transactional object. */
+    	W = std::make_unique<pqxx::work>(C); // inicia uma transação com o banco de dados - Create a transactional object
     
     	std::string sql = u::sprintf("INSERT INTO head (id, date) VALUES (%s,CURRENT_TIMESTAMP);", W->quote(sid).c_str());
     	W->exec0(sql); // salva no banco de dados da sessão
@@ -147,7 +180,7 @@ w::session_postgres_t::save()
 					W->quote(sid).c_str(), W->quote(key).c_str(), W->quote(val).c_str());
     			W->exec0(sql);
     		} else {
-    			std::string sql = u::sprintf("UPDATE body SET value = %s WHERE head_id = %s, name = %s;", 
+    			std::string sql = u::sprintf("UPDATE body SET value = %s WHERE head_id = %s AND name = %s;", 
 					W->quote(val).c_str(), W->quote(sid).c_str(), W->quote(key).c_str());
     			W->exec0(sql);
     		}
@@ -256,7 +289,7 @@ w::session_postgres_t::run_sql_select(const std::string& key)
  } catch(std::exception const& e) { throw err(e.what()); }
 }
 
-std::string
+std::string 
 w::session_postgres_t::create_sid()
 { try {
 	std::string nsec = ""; // nano seconds

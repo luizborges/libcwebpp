@@ -16,7 +16,7 @@ w::in_unify_t w::in;
 ////////////////////////////////////////////////////////////////////////////////
 void w::in_unify_t::init(std::string& http_encode_input)
 { try {
-	var = w::fill_map(http_encode_input, '&');
+	var = w::fill_map<std::unordered_map<std::string, std::string>>(http_encode_input, '&');
  } catch(std::exception const& e) { throw err(e.what()); }
 }
 
@@ -35,6 +35,20 @@ std::string& w::in_unify_t::operator[](const std::string& key)
  } catch(std::exception const& e) { throw err(e.what()); }
 }
 
+std::string& w::in_unify_t::operator[](const std::string& key) const
+{ try {
+	if(key.empty()) {
+		throw err("input key is empty.");
+	}
+	
+	auto svar = var.find(key);
+	if(svar == var.end()) {// não existe a chave no map
+		throw err("input key: \"%s\" does not exists.", key.c_str());
+	} else 	{ // existe a chave no map
+		return const_cast<std::string&>(svar->second);
+	}
+ } catch(std::exception const& e) { throw err(e.what()); }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Public Function - input methods
