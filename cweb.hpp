@@ -54,6 +54,7 @@
 // Includes - my libraries
 ////////////////////////////////////////////////////////////////////////////////
 #include <util.hpp>
+#include <database.hpp> // namespace database
 //#include <headers/stackTracer.h>
 ////////////////////////////////////////////////////////////////////////////////
 // Includes - namespace
@@ -526,6 +527,7 @@ namespace w
 	 * // ver qual o número de linhas das tableas body and head
 	 * select (select count(*) from head) as head_count, count(*) as body_count from body;
      */
+	// arquivo de implementação: session/postgres/session.cpp
 	/**
 	 * Observações gerais:
 	 * 1. a funções: operator[], del() e save() devem ser utilizadas somente com uma sessão
@@ -560,6 +562,15 @@ namespace w
 	  	std::string val = ""; // valor que será salvo no banco - o usuário atualiza e recebe este valor
 	  	std::string val_db = ""; // valor original que existe no banco de dados; caso não exista é vazio
 	  	bool insert = true; // se a operação feita pela função save() deve ser insert or update
+
+		val_t(){}; // constructor default
+
+		val_t(const std::string& val, const bool insert = false) {
+			this->val = val;
+			this->val_db = val;
+			this->insert = insert;
+		}
+
 	 };
 	 
 	 private:
@@ -605,6 +616,21 @@ namespace w
 	 	 */
 	 	bool load(const std::string& sid);
 	 	
+		/**
+		  * @brief Carrega uma sessão que já existe no banco de dados, e carrega no map todos os valores da sessão.
+		  * 
+		  * Carrega no map interno todos os valores existentes no banco de dados que não estejam já no map (this->var).
+		  * @obs: o map é carregado por esta função, com a função: std::unordered_map::emplace().
+		  * O que quer dizer, que se o map (this->var) já tiver uma chave, com determinado valor, o valor desta chave NÃO será alterado.
+		  * Apenas carregas as chave/value que exista para a sessão (sid) no banco de dados e que não esteja no map.
+		  * @obs: esta função chama internamente a função load() para verficiar se a sessão existe e é válida.
+		  * Logo todas as considerações da função load() são válidas aqui.
+		  * @param sid: número que representa o identificador da sessão.
+		  * @return true: se a sessão existe e é válida. 
+		  * @return false: otherwise
+		  */
+		bool load_all(const std::string& sid);
+
 	 	/**
 	 	 * Salva os valores da sessão no banco de dados da sessão.
 	 	 * Atualiza o tempo de vida da sessão no banco de dados.
@@ -634,6 +660,21 @@ namespace w
 	 	 */
     	std::string& operator[](const std::string& key);
     	//const std::string& operator[](const std::string& key) const;
+
+		/**
+		 * @brief Recupera o valor da sessão por meio de sua chave.
+		 * Caso a chave não exista lança uma exceção - std::out_of_range.
+		 * 
+		 * Similar a função 'std::string& operator[](const std::string& key);'.
+		 * A diferença é que funciona como o std::map::at(), ou seja, se a chave não existe no MAP, que representa a sessão,
+		 * ou seja, no map já carregado e no map no banco de dados, esta função 'at()', lança uma exceção 'std::out_of_range'.
+		 * @exception std::out_of_range: indica que a key não foi encontrada no map e nem no banco de dados que guarda a sessão.
+		 * Não existe a chave no map que representa a sessão.
+		 * @obs: realiza uma busca no banco de dados, caso a chave não seja primeiramente encontrada no map em memória.
+		 * @param key: chave da sessão.
+		 * @return std::string&: referencia para o valor que representa a chave da sessão.
+		 */
+		std::string& at(const std::string& key);
 	 	
 	 	////////////////////////////////////////////////////////////////////////////////
 		// public functions - for range interators - for work with for range loop
@@ -673,6 +714,18 @@ namespace w
 	 private:
 	 	bool run_sql_select(const std::string& key);
 	 	std::string create_sid();
+		
+		/**
+		 * @brief Check if the sid is a valid string.
+		 * @obs: NÃO faz checagem no banco de dados se o sid existe no banco de dados.
+		 * Apenas verifica se a string contém os characteres permitidos para a string sid.
+		 * @obs: o sid não pode ser um string vazia.
+		 * @param sid: session id string.
+		 * @param throw_exception: valor default is true. - por compatibilidade com o padrão das outras bibliotecas. 
+		 * @return true: if sid is a valid string and not empty string.
+		 * @return false: otherwise.
+		 */
+		bool check_sid(const std::string& sid, const bool throw_exception = true);
 	};
 	
 	extern session_postgres_t session; // variable init in file session/postgres/session.cpp
@@ -720,8 +773,8 @@ namespace w
 	 * @return: uma estrutura (v.g.: std::vector, std::list) que contém os valores da string
 	 * como seus elementos.
 	 */
-	template<typename T>
-	T fill_obj(const std::string& str, const char lim = '&');
+	template<template<typename> typename ARRAY_T>
+	ARRAY_T<std::string> fill_obj(const std::string& str, const char lim = '&');
 	
 	/**
 	 * Decodifica uma string e passa seus valores para um map.
@@ -733,14 +786,18 @@ namespace w
      * @obs: as funções que serão usadas nesse template tem que ser possível fazer a seguinte atribuição:
      * T map; map[key] = val; -> onde key e val são std::string.
 	 */
-	template<typename T>
-	T fill_map(const std::string& str, const char lim = '&', const char end_key = '=');
+	template<template<typename, typename> typename MAP_T>
+	MAP_T<std::string, std::string> fill_map(const std::string& str, const char lim = '&', const char end_key = '=');
+
+	// template<typename MAP_T>
+	// MAP_T fill_map(const std::string& str, const char lim = '&', const char end_key = '=');
 	////////////////////////////////////////////////////////////////////////////////
 	// Cookie
 	////////////////////////////////////////////////////////////////////////////////
 	class cookie_simple_t
 	{
-	 private:
+	//  private:
+	 public:
 		std::unordered_map<std::string, std::string> cookie;
 		
 	 public:
@@ -762,7 +819,7 @@ namespace w
 	 	
 	 	/**
 	 	 * Envia o cookie para o cliente.
-	 	 * sintax sugar:
+	 	 * syntax sugar:
 	 	 * send() = print(name, cookie[name], args)
 	 	 * @arg name: nome do cookie.
 	 	 * @arg args: arguments of cookie.
@@ -781,6 +838,21 @@ namespace w
 				"Domain="+u::to_str(getenv("SERVER_NAME")));
 		}
 	 	
+		/**
+		 * @brief Verifica se uma string se conforma ao padrão da string que representa os cookies enviados ao servidor.
+		 * Especificação: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
+		 * Caso a string esteja correta, é devolvido um unordered_map<std::string, std::string> que é um mapa estruturado da seguinte forma:
+		 * map.at("key") = value -> onde key is o nome do cookie, e value é o valor do coookie.
+		 * Está função foi feita para transformar os cookies retornados pelo CGI para uma variável de um map em C++.
+		 * Os limites do cookie são: 
+		 * '=' -> diferencia key and value
+		 * ';' -> marco o fim do cookie.
+		 * @param str: string que representa os cookies recebidos pela função.
+		 * Exemplos de str válido: getenv("HTTP_COOKIE"). A variável que representa os cookies no CGI.
+		 * @return std::unordered_map<std::string, std::string> 
+		 */
+		std::unordered_map<std::string, std::string> fill_map_cookie(const std::string& str);
+
 	 	/**
 	 	 * @return o valor do cookie cujo nome é a chave.
 	 	 * se o coookie não existe, ele é criado, contendo o valor vazio, e seu valor é retornado.
@@ -845,8 +917,8 @@ namespace w
 	 	 * necessary to multipart/form-data
 	 	 */
 	 	virtual inline std::string type(const std::string& key) { 
-	 		throw err("HTTP INPUT NOT POST multipart/form-data");
-            key.empty();
+	 		throw err("HTTP INPUT NOT POST multipart/form-data. key: \'%s\'", key.c_str());
+            // key.empty();
 	 	}
 	 	
 	 	virtual inline size_t size() const {
@@ -918,7 +990,8 @@ namespace w
  	 */
 	void in_init(const long max_size = -1); // in file in/unify_umap/in.cpp
 	
-	extern in_unify_t in; // variable init in file in/unify_umap/in.cpp
+	// extern in_unify_t in; // variable init in file in/unify_umap/in.cpp
+	extern std::unordered_map<std::string, std::string> in; // variable init in file in/unify_umap/in.cpp
 } // end namespace w
 
 
@@ -944,10 +1017,10 @@ std::string w::encode_obj(const T& obj, const int num_elem_encode)
  } catch(std::exception const& e) { throw err(e.what()); }
 }
 
-template<typename T>
-T w::fill_obj(const std::string& str, const char lim)
+template<template<typename> typename ARRAY_T>
+ARRAY_T<std::string> w::fill_obj(const std::string& str, const char lim)
 { try {
-	T obj;
+	ARRAY_T<std::string> obj;
 	for(int i=0; static_cast<size_t>(i) < str.size(); ++i)
 	{
 		std::string val = decode(str, i, lim);
@@ -958,10 +1031,10 @@ T w::fill_obj(const std::string& str, const char lim)
  } catch(std::exception const& e) { throw err(e.what()); }
 }
 
-template<typename T>
-T w::fill_map(const std::string& str, const char lim, const char end_key)
+template<template<typename, typename> typename MAP_T>
+MAP_T<std::string, std::string> w::fill_map(const std::string& str, const char lim, const char end_key)
 { try {
-	T map;
+	MAP_T<std::string, std::string> map;
 	for(int i=0; static_cast<size_t>(i) < str.size(); ++i)
 	{
 		///////////////////////////////////////////////////////////////////
@@ -975,6 +1048,24 @@ T w::fill_map(const std::string& str, const char lim, const char end_key)
 	return map;
  } catch(std::exception const& e) { throw err(e.what()); }
 }
+
+// template<typename MAP_T>
+// MAP_T w::fill_map(const std::string& str, const char lim, const char end_key)
+// { try {
+// 	MAP_T map;
+// 	for(int i=0; static_cast<size_t>(i) < str.size(); ++i)
+// 	{
+// 		///////////////////////////////////////////////////////////////////
+// 		// busca, decodifica chave do ENCODE - um par de key e conteúdo
+// 		///////////////////////////////////////////////////////////////////
+// 		std::string key = decode(str, i, end_key);
+// 		++i; // ir para o próximo character que iniciára a nova codificação
+// 		std::string val = decode(str, i, lim);
+// 		map[key] = val;
+//  	}
+// 	return map;
+//  } catch(std::exception const& e) { throw err(e.what()); }
+// }
 
 
 

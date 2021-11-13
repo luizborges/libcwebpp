@@ -9,7 +9,8 @@
 // variável global da sessão
 ////////////////////////////////////////////////////////////////////////////////
 //static Session _session;
-w::in_unify_t w::in;
+// w::in_unify_t w::in;
+std::unordered_map<std::string, std::string> w::in;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Public Function - class in_unify_t
@@ -105,7 +106,8 @@ void w::in_init(const long max_size)
 		throw err("CWEB::IN - REQUEST_METHOD do not recognize. | REQUEST_METHOD = \"%s\"", request_method.c_str());
 	}
 	
-	w::in.init(input_data); // inicializa a variável que guarda o http input
+	// w::in.init(input_data); // inicializa a variável que guarda o http input
+	w::in = w::fill_map<std::unordered_map<std::string, std::string>>(input_data);
 	
  } catch(std::exception const& e) { throw err(e.what()); }
 }

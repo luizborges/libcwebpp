@@ -108,7 +108,7 @@ w::session_postgres_t::load(const std::string& sid)
 	////////////////////////////////////////////////////////////////////////////////
 	// verifica o valor de sid & abre conexão e uma transação com o banco de dados da sessão
 	////////////////////////////////////////////////////////////////////////////////
-	if(u::isdigit(sid, false) == false) return false; // verifica se contém somente números a string - verifica  também se é vazio
+	if(!check_sid(sid, false)) return false; // verifica se contém somente números a string - verifica também se é vazio
 	if(sid.size() > max_size_session_id) {
 		err("sid.size() > max_size_session_id\nsid: \"%s\" | "
 		"sid.size(): %d | max_size_session_id: %d", sid, sid.size(), max_size_session_id);
@@ -145,6 +145,32 @@ w::session_postgres_t::load(const std::string& sid)
 	} catch(std::exception const& e) { C.disconnect(); throw err(e.what()); }
  } catch(std::exception const& e) { throw err(e.what()); }
 }
+
+bool
+w::session_postgres_t::load_all(const std::string& sid)
+{ try {
+	////////////////////////////////////////////////////////////////////////////////
+	// carrega a sessão - inicialmente com o map vazio
+	////////////////////////////////////////////////////////////////////////////////
+	if(!load(sid)) return false; // caso não seja possível carregar a sessão
+
+	////////////////////////////////////////////////////////////////////////////////
+	// carrega todos os valores do sid - para o map.
+	////////////////////////////////////////////////////////////////////////////////
+	std::string sql = "SELECT name, value FROM body WHERE head_id=" + database::quote(sid) + ";";
+	const auto R = database::selectr(sql, connection_arg);
+
+	for(const auto& r : R) { // insere os key/value no this->var que ainda não estão no this->var
+    	const std::string key_name  = r["name"].is_null() ? "" : r["name"].as<std::string>();
+    	const std::string value = r["value"].is_null() ? "" : r["value"].as<std::string>();
+    	const val_t session_value { value };
+		var.emplace(key_name, session_value);
+	}
+	
+	return true;
+ } catch(std::exception const& e) { throw err(e.what()); }
+}
+
 
 void
 w::session_postgres_t::save()
@@ -248,6 +274,24 @@ w::session_postgres_t::operator[](const std::string& key)
  } catch(std::exception const& e) { throw err(e.what()); }
 }
 
+std::string&
+w::session_postgres_t::at(const std::string& key)
+{ try {
+	auto svar = var.find(key);
+	if(svar == var.end()) {// não existe a chave no map
+		if(run_sql_select(key)) { // a chave existe no banco de dados e é inserida dentro do map
+			return var[key].val;
+		} else { // a chave não existe no banco de dados
+			const std::string error_msg = "Out of Range: key does not exists in SESSION. Key: \'" + key + "\'";
+			err("%s", error_msg.c_str()); // emite uma mensagem de erro, para fazer o trace.
+			throw std::out_of_range(error_msg);
+		}
+	} else 	{ // existe a chave no map
+		return svar->second.val;
+	}
+ } catch(std::exception const& e) { throw err(e.what()); }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Private functions
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,26 +307,26 @@ w::session_postgres_t::run_sql_select(const std::string& key)
 	////////////////////////////////////////////////////////////////////////////////
 	pqxx::connection C(connection_arg);
 	try { // necessário for run C.disconnect() in catch()
-    if(!C.is_open()) throw err("Can't open session database.\nconnection_arg: \"%s\"", connection_arg.c_str());
-    pqxx::nontransaction N(C); // inicia uma transação com o banco de dados /* Create a nontransactional object. */
+    	if(!C.is_open()) throw err("Can't open session database.\nconnection_arg: \"%s\"", connection_arg.c_str());
+    	pqxx::nontransaction N(C); // inicia uma transação com o banco de dados /* Create a nontransactional object. */
     
-    std::string sql = u::sprintf("SELECT value FROM body WHERE head_id=%s and name =%s;",
-    	N.quote(sid).c_str(), N.quote(key).c_str());
-    pqxx::result R { N.exec(sql) };
-    if(R.size() < 1) return false; // a chave não existe no banco de dados
-    if(R.size() > 1) {
-    	throw err("Exists more than one key for this session. Numbers of rows returned from database: %d\n"
-    	"Sql to get key: \"%s\"", R.size(), sql.c_str());
-    }
+    	std::string sql = u::sprintf("SELECT value FROM body WHERE head_id=%s and name =%s;",
+    		N.quote(sid).c_str(), N.quote(key).c_str());
+    	pqxx::result R { N.exec(sql) };
+    	if(R.size() < 1) return false; // a chave não existe no banco de dados
+    	if(R.size() > 1) {
+    		throw err("Exists more than one key for this session. Numbers of rows returned from database: %d\n"
+    		"Sql to get key: \"%s\"", R.size(), sql.c_str());
+    	}
     
-    ////////////////////////////////////////////////////////////////////////////////
-	// insere o resultado dentro do map & fecha conexão do BD
-	////////////////////////////////////////////////////////////////////////////////
-	var[key].val = R[0][0].is_null() ? "" : R[0][0].as<std::string>();
-	var[key].val_db = var[key].val; // guarda o antigo valor do banco de dados para a função save();
-	var[key].insert = false; // seta a operação de save() para ser update nesta chave
-	C.disconnect(); // fecha a conexão
-	return true;
+    	////////////////////////////////////////////////////////////////////////////////
+		// insere o resultado dentro do map & fecha conexão do BD
+		////////////////////////////////////////////////////////////////////////////////
+		var[key].val = R[0][0].is_null() ? "" : R[0][0].as<std::string>();
+		var[key].val_db = var[key].val; // guarda o antigo valor do banco de dados para a função save();
+		var[key].insert = false; // seta a operação de save() para ser update nesta chave
+		C.disconnect(); // fecha a conexão
+		return true;
 	} catch (pqxx::sql_error const &e) {
 		C.disconnect(); throw err("SQL error: %s\nQuery was: \"%s\"", e.what(), e.query().c_str());
 	} catch(std::exception const& e) { C.disconnect(); throw err(e.what()); }
@@ -328,6 +372,22 @@ w::session_postgres_t::create_sid()
 	return sid;
  } catch(std::exception const& e) { throw err(e.what()); }
 }
+
+bool 
+w::session_postgres_t::check_sid(const std::string& sid, const bool throw_exception)
+{ try {
+	if(sid.empty()) {
+		if(throw_exception) {
+			throw err("SESSION::sid cannot be an empty string.");
+		} else {
+			 return false;
+		}
+	}
+	bool b = u::isdigit(sid, throw_exception);
+	return b;
+ } catch(std::exception const& e) { throw err("%s\nsid: \'%s\'.", e.what(), sid.c_str()); }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // variável global da sessão
 ////////////////////////////////////////////////////////////////////////////////

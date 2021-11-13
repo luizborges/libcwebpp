@@ -4,11 +4,11 @@ DLIB_DIR        = $(DLIB_DIR_H)/dlibs
 DLIB_DIR_LPATH  = $(foreach dir,$(DLIB_DIR),   -L$(dir)) # add prefix to all dir
 DLIB_DIR_H_IPATH= $(foreach dir,$(DLIB_DIR_H), -I$(dir)) # add prefix to all dir
 DLIB_DIR_RPATH  = $(foreach dir,$(DLIB_DIR),   -Wl,-rpath=$(dir)) # add prefix to all dir
-DLIB_NAME       = -lutilpp # insert here all dynamics libraries in DLIB_DIR_H you want to use
+DLIB_NAME       = -lutilpp -ldatabasepp# insert here all dynamics libraries in DLIB_DIR_H you want to use
 # old -lerror -lstackTracer -lutilpp
 # old -lclientOutput_strMap -lroute_easy -lclientInput_manager -lcookie_manager
 # OLD -LIBCOMMON = -lerror -lmemoryManager -lstackTracer -lfileUtil -larrayList_noSync -lmap_ArrayList_noSync -labstractFactoryCommon
-CFLAGS          = -Wall -Wextra -g -Ofast -DNDEBUG -Wno-variadic-macros -fPIC -Wl,--export-dynamic # Werror transforms warning in error
+CFLAGS          = -Wall -Wextra -g -Ofast -DNDEBUG -Wno-variadic-macros -fPIC -Wl,--export-dynamic -std=c++2a # Werror transforms warning in error
 DLIB_STD        = -lm -lpthread -lfcgi -lpqxx -lpq #-lgc
 DLIB            = $(DLIB_STD) $(DLIB_NAME)
 COMPILER_FLAGS  = $(CFLAGS) $(DLIB_DIR_LPATH) $(DLIB_DIR_H_IPATH)
@@ -29,6 +29,8 @@ OUT     = out/out_strMap/out.cpp
 COOKIE  = cookie/strUMap_simple/cookie.cpp
 #SESSION = session/session_fileMap/session.cpp
 SESSION = session/postgres/session.cpp
+
+CLEAN_ALL_OBJ = percent/*.o percent/c_style/*.o percent/umap/*.o cookie/cookie_strMap/*.o cookie/strUMap_simple/*.o in/get/get_strMap/*.o in/manager/*.o in/post/post_strMap/*.o in/unify_umap/*.o out/out_strMap/*.o session/session_fileMap/*.o session/postgres/*.o
 ################################################
 # END
 ################################################
@@ -86,9 +88,13 @@ lib: cscrean clean_lib linker_lib export_lib export_lib_header
 #	$(info $nDynamic Library created with success: $(LIB) $nDynamic Library Header exported with success: $(C_LIB_H)$nTo direct use: #include <headers/$(C_LIB_H)> $nFramework Library exported with success.$nTo use Framework CWEB: #include <headers/$(C_LIB_H)>)
 # can use to print: $(info your_text) $(warning your_text) or $(error your_text) # for new/break line use: $nYour_text - ex: my_text_line1 $nmy_text_line2
 
-linker_lib: $(C_SRC:.cpp=.o) mv_c_obj
-	$(info $nlinkier objects to produce: $(LIB))
-	$(CC) $(LINK_DLIB) $(C_OBJ) -o $(LIB) $(DLIB)
+linker_lib: $(C_SRC:.cpp=.o)
+	$(info $nlinker objects to produce: $(LIB))
+	$(CC) $(LINK_DLIB) $(C_OBJ_ORI) -o $(LIB) $(DLIB)
+
+# linker_lib: $(C_SRC:.cpp=.o) mv_c_obj # use this to compile all the .cpp every single time
+# 	$(info $nlinkier objects to produce: $(LIB))
+# 	$(CC) $(LINK_DLIB) $(C_OBJ) -o $(LIB) $(DLIB)
 
 linker: cscrean clean add_c_src_main $(C_SRC:.cpp=.o) $(C_SRC_MAIN:.cpp=.o) mv_c_obj
 	$(info $nlinker objects to produce: $(EXE))
@@ -142,7 +148,7 @@ clean_lib: clean
 	$(info clean old libraries and headers)
 	sudo rm -rf $(LIB) $(DLIB_DIR)/$(LIB) $(DLIB_DIR_H)/headers/$(C_LIB_H)
 
-clean_glib: clean
+clean_glib:
 	sudo rm -rf $(LIB)
 	sudo rm -rf $(DLIB_DIR_GLOBAL)/$(LIB)
 	sudo rm -rf $(DLIB_DIR_H_GLOBAL)/$(C_LIB_H)
@@ -150,7 +156,7 @@ clean_glib: clean
 	sudo ldconfig $(DLIB_DIR_GLOBAL) # to update the cache /etc/ld.so.cache
 
 clean:
-	rm -rf $(C_OBJ_DIR)*.o *~ *.out *.key out.txt
+	rm -rf $(C_OBJ_DIR)*.o *~ *.out *.key out.txt *.o $(CLEAN_ALL_OBJ)
 
 cscrean:
 	clear

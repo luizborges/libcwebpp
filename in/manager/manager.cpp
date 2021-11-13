@@ -81,7 +81,7 @@ cweb::in::init(const long max_size)
 	}
 	
 	return false;
- } catch(u::error& e) { throw err(); }
+ } catch(u::error& e) { throw err(""); }
 }
 
 char*
